@@ -1,0 +1,90 @@
+# docker-compose.yml modificado para construir una imagen personalizada
+
+x-mautic-volumes:
+  # ... (esto no cambia)
+  &mautic-volumes
+  - mautic-config:/etc/mautic
+  - mautic-logs:/var/www/html/var/logs
+  - mautic-media-files:/var/www/html/media/files
+  - mautic-media-images:/var/www/html/media/images
+
+services:
+  db:
+    # ... (el servicio de base de datos no cambia en absoluto)
+    image: mysql:8.0
+    container_name: mautic_db
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    healthcheck:
+      test: mysqladmin --user=$$MYSQL_USER --password=$$MYSQL_PASSWORD ping
+      start_period: 10s
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mautic-net
+
+  mautic:
+    # --- INICIO DEL CAMBIO ---
+    # En lugar de 'image:', le decimos que construya la imagen desde el directorio actual.
+    build: .
+    # Opcional: puedes darle un nombre a la imagen que se construirá
+    image: mautic-custom-ses:5.0.4
+    # --- FIN DEL CAMBIO ---
+    container_name: mautic_web
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:80"
+    volumes: *mautic-volumes
+    environment:
+      - MAUTIC_DB_HOST=db
+      - MAUTIC_DB_USER=${MYSQL_USER}
+      - MAUTIC_DB_PASSWORD=${MYSQL_PASSWORD}
+      - MAUTIC_DB_NAME=${MYSQL_DATABASE}
+      - MAUTIC_URL=${MAUTIC_URL}
+      - MAUTIC_MAILER_FROM_NAME=${MAUTIC_MAILER_FROM_NAME}
+      - MAUTIC_MAILER_FROM_EMAIL=${MAUTIC_MAILER_FROM_EMAIL}
+      - MAUTIC_DEFAULT_TIMEZONE=${MAUTIC_DEFAULT_TIMEZONE}
+    networks:
+      - mautic-net
+
+  mautic_cron:
+    # --- INICIO DEL CAMBIO ---
+    # Usamos la misma instrucción 'build' para que el contenedor de cron
+    # también tenga el código del plugin. Docker es eficiente y reutilizará
+    # la imagen ya construida para el servicio 'mautic'.
+    build: .
+    image: mautic-custom-ses:5.0.4
+    # --- FIN DEL CAMBIO ---
+    container_name: mautic_cron
+    volumes: *mautic-volumes
+    environment:
+      - DOCKER_MAUTIC_ROLE=mautic_cron
+      - MAUTIC_DB_HOST=db
+      - MAUTIC_DB_USER=${MYSQL_USER}
+      - MAUTIC_DB_PASSWORD=${MYSQL_PASSWORD}
+      - MAUTIC_DB_NAME=${MYSQL_DATABASE}
+    depends_on:
+      mautic:
+        condition: service_started
+    networks:
+      - mautic-net
+
+# ... (el resto del archivo: volumes y networks, no cambia)
+volumes:
+  mysql-data:
+  mautic-config:
+  mautic-logs:
+  mautic-media-files:
+  mautic-media-images:
+
+networks:
+  mautic-net: {}
