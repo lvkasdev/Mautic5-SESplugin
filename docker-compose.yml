@@ -1,34 +1,87 @@
-# Dockerfile Simplificado que usa un Entrypoint Script
+# =================================================================
+# Docker Compose para Mautic 5 con Plugin Amazon SES Personalizado
+# Optimizado para despliegue en Portainer desde un Repositorio Git
+# =================================================================
 
-# 1. Usar la imagen oficial de Mautic como base
-FROM mautic/mautic:5.0.4-apache
+services:
+  db:
+    image: mysql:8.0
+    container_name: mautic_db
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    healthcheck:
+      test: mysqladmin --user=$$MYSQL_USER --password=$$MYSQL_PASSWORD ping
+      start_period: 10s
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mautic-net
 
-# 2. Cambiar a usuario ROOT para instalar y dar permisos
-USER root
+  mautic:
+    # Construye la imagen desde el Dockerfile en la raíz del repositorio.
+    build: .
+    # Opcional: Dale un nombre a la imagen construida para identificarla fácilmente.
+    image: mautic-custom-ses:5.0.4
+    container_name: mautic_web
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${MAUTIC_PORT_HOST}:80"
+    volumes:
+      - mautic-config:/etc/mautic
+      - mautic-logs:/var/www/html/var/logs
+      - mautic-media-files:/var/www/html/media/files
+      - mautic-media-images:/var/www/html/media/images
+    environment:
+      - MAUTIC_DB_HOST=db
+      - MAUTIC_DB_USER=${MYSQL_USER}
+      - MAUTIC_DB_PASSWORD=${MYSQL_PASSWORD}
+      - MAUTIC_DB_NAME=${MYSQL_DATABASE}
+      - MAUTIC_URL=${MAUTIC_URL}
+      - MAUTIC_MAILER_FROM_NAME=${MAUTIC_MAILER_FROM_NAME}
+      - MAUTIC_MAILER_FROM_EMAIL=${MAUTIC_MAILER_FROM_EMAIL}
+      - MAUTIC_DEFAULT_TIMEZONE=${MAUTIC_DEFAULT_TIMEZONE}
+      - MAUTIC_ADMIN_EMAIL=${MAUTIC_ADMIN_EMAIL}
+      - MAUTIC_ADMIN_PASSWORD=${MAUTIC_ADMIN_PASSWORD}
+    networks:
+      - mautic-net
 
-# 3. Instalar herramientas básicas si son necesarias (wget y unzip para el otro plugin)
-RUN apt-get update && apt-get install -y --no-install-recommends wget unzip && rm -rf /var/lib/apt/lists/*
+  mautic_cron:
+    # Usa la misma imagen construida para el servicio principal.
+    build: .
+    image: mautic-custom-ses:5.0.4
+    container_name: mautic_cron
+    volumes:
+      - mautic-config:/etc/mautic
+      - mautic-logs:/var/www/html/var/logs
+      - mautic-media-files:/var/www/html/media/files
+      - mautic-media-images:/var/www/html/media/images
+    environment:
+      - DOCKER_MAUTIC_ROLE=mautic_cron
+      - MAUTIC_DB_HOST=db
+      - MAUTIC_DB_USER=${MYSQL_USER}
+      - MAUTIC_DB_PASSWORD=${MYSQL_PASSWORD}
+      - MAUTIC_DB_NAME=${MYSQL_DATABASE}
+    depends_on:
+      mautic:
+        condition: service_started
+    networks:
+      - mautic-net
 
-# --- INSTALAR PLUGIN 1: Amazon SES (Método manual por ZIP) ---
-# Este método sigue funcionando bien aquí porque es solo una copia de archivos.
-ARG PLUGIN_SES_NAME=MauticAmazonSesBundle
-ARG PLUGIN_SES_URL=https://github.com/pabloveintimilla/mautic-amazon-ses/archive/refs/heads/main.zip
+volumes:
+  mysql-data:
+  mautic-config:
+  mautic-logs:
+  mautic-media-files:
+  mautic-media-images:
 
-RUN wget -O plugin-ses.zip "${PLUGIN_SES_URL}" \
-    && unzip -q plugin-ses.zip -d /var/www/html/plugins/ \
-    && mv /var/www/html/plugins/mautic-amazon-ses-main /var/www/html/plugins/${PLUGIN_SES_NAME} \
-    && rm plugin-ses.zip
-
-# --- CONFIGURAR EL ENTRYPOINT SCRIPT ---
-# Copiamos nuestro script personalizado al contenedor
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-
-# Nos aseguramos de que sea ejecutable dentro del contenedor también
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# Le decimos a Docker que use nuestro script como el nuevo punto de entrada
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
-# El CMD original de la imagen base de Mautic es 'apache2-foreground'.
-# Nuestro script lo recibirá gracias a 'exec "$@"'
-CMD ["apache2-foreground"]
+networks:
+  mautic-net: {}
