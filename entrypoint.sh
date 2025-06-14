@@ -1,9 +1,6 @@
 #!/bin/bash
-# ==================================================================
-# Entrypoint Definitivo (v5) para Despliegue Automatizado de Mautic
-# ==================================================================
 # Marcador de versión para depuración.
-echo ">>>> EJECUTANDO SCRIPT DE ENTRADA v5 - VERSIÓN FINAL <<<<"
+echo ">>>> EJECUTANDO SCRIPT DE ENTRADA v6 - MODO DEPURACIÓN <<<<"
 
 set -e
 
@@ -11,7 +8,7 @@ if [ ! -f /var/www/html/config/local.php ]; then
     echo ">>>> PRIMERA EJECUCIÓN DETECTADA: Mautic no está instalado."
     echo ">>>> Iniciando proceso de instalación automatizada..."
 
-    # 1. Instalar Mautic (Base de Datos)
+    # 1. Instalar Mautic (Base de Datos) - ESTO YA FUNCIONA
     php /var/www/html/bin/console mautic:install \
       --db_driver="pdo_mysql" \
       --db_host="$MAUTIC_DB_HOST" \
@@ -25,15 +22,11 @@ if [ ! -f /var/www/html/config/local.php ]; then
       --admin_lastname="User" \
       --no-interaction \
       "$MAUTIC_URL"
-
     echo ">>>> Base de datos de Mautic instalada y configurada."
 
-    # 2. Instalar Plugin de Amazon SNS
-    echo ">>>> Instalando plugin de Amazon SNS..."
-    # CORRECCIÓN FINAL: Se elimina la opción '--force' que no es válida para este comando.
-    php /var/www/html/bin/console mautic:marketplace:install matbcvo/mautic-amazon-sns-callback
-
-    echo ">>>> Plugin de Amazon SNS instalado."
+    # 2. Instalar Plugin de Amazon SNS - COMENTADO TEMPORALMENTE
+    echo ">>>> [DEPURACIÓN] Saltando la instalación del plugin de SNS para estabilizar."
+    # php /var/www/html/bin/console mautic:marketplace:install matbcvo/mautic-amazon-sns-callback
 
     # 3. Limpiar la Caché
     echo ">>>> Limpiando la caché de Mautic..."
@@ -44,8 +37,7 @@ if [ ! -f /var/www/html/config/local.php ]; then
     echo ">>>> Ajustando permisos de los archivos..."
     chown -R www-data:www-data /var/www/html
     echo ">>>> Permisos ajustados."
-
-    echo ">>>> ¡PROCESO DE INSTALACIÓN AUTOMATIZADA COMPLETADO!"
+    echo ">>>> ¡PROCESO DE INSTALACIÓN BASE COMPLETADO! ENTRANDO EN MODO DE ESPERA."
 
 else
     echo ">>>> Mautic ya está instalado. Saltando la instalación."
