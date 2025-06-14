@@ -1,0 +1,7 @@
+# Ignorar archivos de entorno con secretos
+/.env
+
+# Opcional: Ignorar otros archivos comunes de Docker y desarrollo
+docker-compose.override.yml
+/node_modules
+/vendor
