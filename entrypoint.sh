@@ -1,7 +1,9 @@
 #!/bin/bash
-
+# ==================================================================
+# Entrypoint Definitivo (v5) para Despliegue Automatizado de Mautic
+# ==================================================================
 # Marcador de versión para depuración.
-echo ">>>> EJECUTANDO SCRIPT DE ENTRADA v4 - LA VERSIÓN CORREGIDA <<<<"
+echo ">>>> EJECUTANDO SCRIPT DE ENTRADA v5 - VERSIÓN FINAL <<<<"
 
 set -e
 
@@ -9,7 +11,7 @@ if [ ! -f /var/www/html/config/local.php ]; then
     echo ">>>> PRIMERA EJECUCIÓN DETECTADA: Mautic no está instalado."
     echo ">>>> Iniciando proceso de instalación automatizada..."
 
-    # Comando de instalación con la sintaxis corregida.
+    # 1. Instalar Mautic (Base de Datos)
     php /var/www/html/bin/console mautic:install \
       --db_driver="pdo_mysql" \
       --db_host="$MAUTIC_DB_HOST" \
@@ -26,14 +28,19 @@ if [ ! -f /var/www/html/config/local.php ]; then
 
     echo ">>>> Base de datos de Mautic instalada y configurada."
 
+    # 2. Instalar Plugin de Amazon SNS
     echo ">>>> Instalando plugin de Amazon SNS..."
-    php /var/www/html/bin/console mautic:marketplace:install matbcvo/mautic-amazon-sns-callback --force
+    # CORRECCIÓN FINAL: Se elimina la opción '--force' que no es válida para este comando.
+    php /var/www/html/bin/console mautic:marketplace:install matbcvo/mautic-amazon-sns-callback
+
     echo ">>>> Plugin de Amazon SNS instalado."
 
+    # 3. Limpiar la Caché
     echo ">>>> Limpiando la caché de Mautic..."
     php /var/www/html/bin/console cache:clear
     echo ">>>> Caché limpiada."
 
+    # 4. Ajustar Permisos
     echo ">>>> Ajustando permisos de los archivos..."
     chown -R www-data:www-data /var/www/html
     echo ">>>> Permisos ajustados."
